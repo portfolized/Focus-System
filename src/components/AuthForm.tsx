@@ -23,7 +23,7 @@ import { api, clientTimeZone, hardNavigate } from "@/lib/client/api";
 const FEATURES = [
   { icon: Sun, title: "Plan the day", text: "One clear list, one priority." },
   { icon: Timer, title: "Deep focus", text: "Pomodoro sessions with real breaks." },
-  { icon: Trophy, title: "Level up", text: "XP, levels and daily streaks." },
+  { icon: Trophy, title: "Earn points", text: "XP, ranks, achievements and streaks." },
   { icon: Smartphone, title: "Everywhere", text: "Web + app, synced in real time." },
 ];
 
@@ -64,8 +64,10 @@ export default function AuthForm({ mode }: { mode: "login" | "register" }) {
       <div className="auth-shell">
         {/* Brand / hero */}
         <section className="auth-hero" aria-hidden="true">
-          <div className="sidebar-brand">
-            <Target />
+          <div className="brand">
+            <span className="brand-mark">
+              <Target />
+            </span>
             <span>Focus System</span>
           </div>
           <div>
@@ -124,8 +126,10 @@ export default function AuthForm({ mode }: { mode: "login" | "register" }) {
 
         {/* Form */}
         <section className="auth-card">
-          <div className="auth-mobile-brand sidebar-brand">
-            <Target />
+          <div className="auth-mobile-brand brand">
+            <span className="brand-mark">
+              <Target />
+            </span>
             <span>Focus System</span>
           </div>
 
@@ -139,7 +143,7 @@ export default function AuthForm({ mode }: { mode: "login" | "register" }) {
           </div>
 
           <div>
-            <h1>{isLogin ? "Welcome back 👋" : "Start focusing today"}</h1>
+            <h1>{isLogin ? "Welcome back" : "Start focusing today"}</h1>
             <p className="auth-sub">
               {isLogin ? "Sign in to pick up where you left off." : "Free account · syncs the website and the app."}
             </p>

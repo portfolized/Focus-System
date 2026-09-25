@@ -65,29 +65,29 @@ export default function CalendarPage() {
 
   return (
     <section className="calendar-page">
-      <div className="calendar-first">
-        <div className="calendar-page-head">
+      <div className="card calendar-main">
+        <div className="page-head">
           <div>
-            <div className="daily-label">Calendar</div>
+            <div className="eyebrow">Calendar</div>
             <h1>
               {MONTHS[cm]} {cy}
             </h1>
           </div>
-          <div className="calendar-actions">
-            <button className="btn btn-secondary" onClick={() => navMonth(-1)} title="Previous month">
+          <div className="btn-row">
+            <button className="icon-btn bordered" onClick={() => navMonth(-1)} title="Previous month">
               <ChevronLeft />
             </button>
-            <button className="btn btn-secondary" onClick={() => selectDate(today)}>
+            <button className="btn btn-secondary btn-sm" onClick={() => selectDate(today)}>
               Today
             </button>
-            <button className="btn btn-secondary" onClick={() => navMonth(1)} title="Next month">
+            <button className="icon-btn bordered" onClick={() => navMonth(1)} title="Next month">
               <ChevronRight />
             </button>
           </div>
         </div>
-        <div className="calendar-grid simple-calendar-grid">
+        <div className="cal-grid">
           {DAY_NAMES.map((n) => (
-            <div className="day-header" key={n}>
+            <div className="cal-dow" key={n}>
               {n}
             </div>
           ))}
@@ -106,33 +106,30 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      <aside className="selected-day-panel">
-        <div className="selected-day-head">
+      <aside className="card day-panel">
+        <div className="card-head">
           <div>
-            <div className="daily-label">Selected date</div>
+            <div className="eyebrow">{selected === today ? "Today" : "Selected day"}</div>
             <h2>{fmtDate(selected)}</h2>
           </div>
-          <div className="daily-score small">
-            <strong>
-              {done}/{total}
-            </strong>
-            <span>done</span>
-          </div>
+          <span className="count-pill">
+            {done}/{total}
+          </span>
         </div>
-        <div className="daily-progress">
-          <div style={{ width: `${rate}%` }} />
+        <div className="bar bar-sm">
+          <i style={{ width: `${rate}%` }} />
         </div>
         {selected < today ? (
-          <div className="calendar-note">
+          <div className="note">
             <Lock />
             <span>Past dates are read-only. Pick today or a future date to add tasks.</span>
           </div>
         ) : (
           <DayComposer date={selected} key={selected} />
         )}
-        <div className="section-title">
-          <span>Tasks</span>
-          <h2>{active.length} active</h2>
+        <div className="section-head">
+          <h3>Tasks</h3>
+          <span className="muted">{active.length} open</span>
         </div>
         {active.length ? (
           <div className="task-list">
@@ -141,17 +138,17 @@ export default function CalendarPage() {
             ))}
           </div>
         ) : (
-          <div className="empty-state compact-empty">
+          <div className="empty">
             <CalendarPlus />
-            <h3>{total === 0 ? "Nothing planned" : "All clear"}</h3>
+            <h4>{total === 0 ? "Nothing planned" : "All clear"}</h4>
             <p>{total === 0 ? "Add one task above for this date." : "Every task for this date is completed."}</p>
           </div>
         )}
         {completed.length > 0 && (
           <>
-            <div className="section-title completed-title">
-              <span>Done</span>
-              <h2>{completed.length} completed</h2>
+            <div className="section-head">
+              <h3>Completed</h3>
+              <span className="muted">{completed.length}</span>
             </div>
             <div className="task-list">
               {completed.map((t) => (
@@ -177,28 +174,24 @@ function DayCell(props: {
   const { day, date, other, tasks, today, selected, onSelect } = props;
   const done = tasks.filter((t) => t.completed).length;
   const priority = tasks.some((t) => t.isPriority && !t.completed);
-  const cls = ["day-cell"];
-  if (other) cls.push("other-month");
+  const cls = ["cal-cell"];
+  if (other) cls.push("other");
   if (date === today) cls.push("today");
   if (date === selected) cls.push("selected");
-  if (date < today && !other) cls.push("past-day");
+  if (date < today && !other) cls.push("past");
+  const rate = tasks.length ? done / tasks.length : 0;
 
   return (
     <button className={cls.join(" ")} onClick={() => onSelect(date)}>
-      <span className="day-num">{day}</span>
-      {tasks.length > 0 && <span className="day-count">{tasks.length}</span>}
-      {priority && (
-        <span className="priority-corner">
-          <Zap />
-        </span>
-      )}
-      <span className="day-dots">
-        {tasks.slice(0, 4).map((t) => (
-          <span key={t.id} className={`day-dot ${t.completed ? "completed" : t.isPriority ? "frog" : "normal"}`} />
+      <span className="cal-num">{day}</span>
+      {priority && <Zap className="cal-zap" />}
+      <span className="cal-dots">
+        {tasks.slice(0, 5).map((t) => (
+          <i key={t.id} className={t.completed ? "done" : t.isPriority ? "priority" : ""} />
         ))}
       </span>
       {tasks.length > 0 && (
-        <span className="day-summary">
+        <span className={`cal-summary ${rate === 1 ? "all" : ""}`}>
           {done}/{tasks.length}
         </span>
       )}
@@ -241,7 +234,7 @@ function DayComposer({ date }: { date: string }) {
   };
 
   return (
-    <div className="calendar-composer">
+    <div className="composer">
       <input
         type="text"
         placeholder={`Add a task for ${fmtDateShort(date)}...`}
@@ -249,7 +242,7 @@ function DayComposer({ date }: { date: string }) {
         onChange={(e) => setTitle(e.target.value)}
         onKeyDown={(e) => e.key === "Enter" && add()}
       />
-      <div className="calendar-composer-options">
+      <div className="quick-options">
         <select value={goalId} onChange={(e) => setGoalId(e.target.value)}>
           <option value="">No goal</option>
           {data.goals.map((g) => (
@@ -259,10 +252,15 @@ function DayComposer({ date }: { date: string }) {
           ))}
         </select>
         <input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
-        <label>
-          <input type="checkbox" checked={priority} onChange={(e) => setPriority(e.target.checked)} /> Priority
-        </label>
-        <button className="btn btn-primary" onClick={add} disabled={busy}>
+        <button
+          type="button"
+          className={`toggle-chip ${priority ? "on" : ""}`}
+          onClick={() => setPriority((p) => !p)}
+          aria-pressed={priority}
+        >
+          <Zap /> Main
+        </button>
+        <button className="btn btn-primary btn-sm" onClick={add} disabled={busy || !title.trim()}>
           <Plus /> Add
         </button>
       </div>

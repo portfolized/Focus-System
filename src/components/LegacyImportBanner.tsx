@@ -37,7 +37,7 @@ export default function LegacyImportBanner() {
   };
 
   return (
-    <div className="banner">
+    <div className="card banner">
       <Upload />
       <div>
         <strong>Found data from the previous version</strong>

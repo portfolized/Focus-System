@@ -1,7 +1,9 @@
 "use client";
 
+import { CalendarCheck, CircleCheck, Timer, TrendingUp } from "lucide-react";
 import { tasksForDate, useStore, type AnalyticsPeriod } from "@/lib/client/store";
-import { fmtDateShort, getLevelInfo, shiftDate, streakCount } from "@/lib/shared/logic";
+import { focusMinutes, sessionsOn } from "@/lib/client/progress";
+import { fmtDateShort, shiftDate } from "@/lib/shared/logic";
 import type { TaskDTO } from "@/lib/shared/types";
 
 function periodDays(today: string, period: AnalyticsPeriod) {
@@ -17,119 +19,155 @@ export default function AnalyticsPage() {
   const tasks = data.tasks.filter((t) => daySet.has(t.dueDate));
   const done = tasks.filter((t) => t.completed);
   const rate = tasks.length ? Math.round((done.length / tasks.length) * 100) : 0;
-  const periodLogs = data.pomoLogs.filter((l) => daySet.has(l.date));
-  const sessions = periodLogs.reduce((s, l) => s + (l.sessions || 1), 0);
-  const minutes = periodLogs.reduce((s, l) => s + (l.minutes || (l.sessions || 1) * data.user.settings.pomoWork), 0);
+  const sessions = days.reduce((s, d) => s + sessionsOn(data, d), 0);
+  const minutes = focusMinutes(data, daySet);
   const bestDay =
     days
-      .map((ds) => {
-        const list = tasksForDate(data.tasks, ds);
-        return { date: ds, done: list.filter((x) => x.completed).length };
-      })
+      .map((ds) => ({ date: ds, done: tasksForDate(data.tasks, ds).filter((x) => x.completed).length }))
       .sort((a, b) => b.done - a.done)[0] ?? { date: today, done: 0 };
   const avg = days.length ? Math.round((done.length / days.length) * 10) / 10 : 0;
   const periodLabel = period === "day" ? "Today" : period === "week" ? "Last 7 days" : "Last 30 days";
+  const minutesByDay = days.map((ds) => focusMinutes(data, new Set([ds])));
+  const maxMinutes = Math.max(30, ...minutesByDay);
 
   return (
-    <>
-      <section className="analytics-head">
+    <div className="page">
+      <div className="page-head">
         <div>
-          <div className="daily-label">{periodLabel}</div>
-          <h1>Performance dashboard</h1>
+          <div className="eyebrow">{periodLabel}</div>
+          <h1>Stats</h1>
         </div>
-        <div className="period-tabs">
+        <div className="segmented segmented-sm">
           {(["day", "week", "month"] as const).map((p) => (
             <button key={p} className={period === p ? "active" : ""} onClick={() => setUi({ analyticsPeriod: p })}>
-              {p[0].toUpperCase() + p.slice(1)}
+              {p === "day" ? "Today" : p === "week" ? "Week" : "Month"}
             </button>
           ))}
         </div>
+      </div>
+
+      <section className="metrics">
+        <Metric icon={<CircleCheck />} tone="teal" label="Completion" value={`${rate}%`} sub={`${done.length} of ${tasks.length} tasks`} />
+        <Metric icon={<TrendingUp />} tone="primary" label="Daily average" value={String(avg)} sub="tasks completed" />
+        <Metric icon={<Timer />} tone="pink" label="Focus time" value={fmtMinutes(minutes)} sub={`${sessions} sessions`} />
+        <Metric icon={<CalendarCheck />} tone="gold" label="Best day" value={String(bestDay.done)} sub={fmtDateShort(bestDay.date)} />
       </section>
 
-      <section className="analytics-summary-grid">
-        <div className="metric-card">
-          <span>Completion</span>
-          <strong>{rate}%</strong>
-          <em>
-            {done.length} of {tasks.length} tasks
-          </em>
-        </div>
-        <div className="metric-card">
-          <span>Daily average</span>
-          <strong>{avg}</strong>
-          <em>completed tasks</em>
-        </div>
-        <div className="metric-card">
-          <span>Focus time</span>
-          <strong>{minutes}m</strong>
-          <em>{sessions} sessions</em>
-        </div>
-        <div className="metric-card">
-          <span>Best day</span>
-          <strong>{bestDay.done}</strong>
-          <em>{fmtDateShort(bestDay.date)}</em>
-        </div>
-      </section>
-
-      <section className="analytics-card full-width">
-        <h4>Day by day results</h4>
-        <div className="performance-bars">
-          {days.map((ds) => {
-            const list = tasksForDate(data.tasks, ds);
-            const d = list.filter((t) => t.completed).length;
-            const r = list.length ? Math.round((d / list.length) * 100) : 0;
-            const color = r >= 80 ? "var(--success)" : r >= 40 ? "var(--primary)" : "var(--warning)";
-            return (
-              <div className="perf-day" key={ds}>
-                <div className="perf-bar">
-                  <i style={{ height: `${Math.max(6, r)}%`, background: color }} />
-                </div>
-                <strong>{r}%</strong>
-                <span>{fmtDateShort(ds)}</span>
-                <em>
-                  {d}/{list.length}
-                </em>
-              </div>
-            );
-          })}
-        </div>
-      </section>
-
-      <section className="analytics-two-col">
-        <div className="analytics-card">
-          <h4>By goal/category</h4>
-          <GoalBreakdown tasks={tasks} />
-        </div>
-        <div className="analytics-card">
-          <h4>Task type</h4>
-          <Matrix tasks={tasks} />
-        </div>
-      </section>
-
-      <section className="analytics-extra">
-        <div className="analytics-card">
-          <h4>Streak</h4>
-          <div className="streak-display">
-            <div className="streak-number">{streakCount(data.streakDays, today)}</div>
-            <div className="streak-label">
-              days in a row
-              <br />
-              with activity
+      {period !== "day" && (
+        <div className="grid-2">
+          <section className="card">
+            <div className="card-head">
+              <h3>Tasks completed</h3>
             </div>
-          </div>
-          <div className="streak-days">
-            {periodDays(today, "month").map((ds) => (
-              <div
-                key={ds}
-                title={fmtDateShort(ds)}
-                className={`streak-day ${data.streakDays.includes(ds) ? "active" : ""} ${ds === today ? "today" : ""}`}
-              />
-            ))}
-          </div>
+            <div className={`bars ${days.length > 10 ? "dense" : ""}`}>
+              {days.map((ds) => {
+                const list = tasksForDate(data.tasks, ds);
+                const d = list.filter((t) => t.completed).length;
+                const r = list.length ? Math.round((d / list.length) * 100) : 0;
+                return (
+                  <div className="bar-col" key={ds} title={`${fmtDateShort(ds)}: ${d}/${list.length} (${r}%)`}>
+                    <div className="bar-v">
+                      <i className={r >= 80 ? "good" : r >= 40 ? "" : "low"} style={{ height: `${list.length ? Math.max(4, r) : 0}%` }} />
+                    </div>
+                    <span>{days.length > 10 ? new Date(ds + "T00:00:00").getDate() : fmtDay(ds)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+          <section className="card">
+            <div className="card-head">
+              <h3>Focus minutes</h3>
+            </div>
+            <div className={`bars ${days.length > 10 ? "dense" : ""}`}>
+              {days.map((ds, i) => (
+                <div className="bar-col" key={ds} title={`${fmtDateShort(ds)}: ${minutesByDay[i]} min`}>
+                  <div className="bar-v">
+                    <i className="focus" style={{ height: `${(minutesByDay[i] / maxMinutes) * 100}%` }} />
+                  </div>
+                  <span>{days.length > 10 ? new Date(ds + "T00:00:00").getDate() : fmtDay(ds)}</span>
+                </div>
+              ))}
+            </div>
+          </section>
         </div>
-        <LevelCard xp={data.user.xp} />
+      )}
+
+      <div className="grid-2">
+        <section className="card">
+          <div className="card-head">
+            <h3>By goal</h3>
+          </div>
+          <GoalBreakdown tasks={tasks} />
+        </section>
+        <section className="card">
+          <div className="card-head">
+            <h3>Open tasks by priority</h3>
+          </div>
+          <Matrix tasks={tasks} />
+        </section>
+      </div>
+
+      <section className="card">
+        <div className="card-head">
+          <h3>Activity · last 12 weeks</h3>
+          <span className="legend">
+            Less <i className="l0" />
+            <i className="l1" />
+            <i className="l2" />
+            <i className="l3" />
+            <i className="l4" /> More
+          </span>
+        </div>
+        <Heatmap />
       </section>
-    </>
+    </div>
+  );
+}
+
+function fmtDay(ds: string) {
+  return new Date(ds + "T00:00:00").toLocaleDateString("en-US", { weekday: "short" });
+}
+
+function fmtMinutes(m: number) {
+  if (m < 60) return `${m}m`;
+  return `${Math.floor(m / 60)}h ${m % 60}m`;
+}
+
+function Metric({ icon, label, value, sub, tone }: { icon: React.ReactNode; label: string; value: string; sub: string; tone: string }) {
+  return (
+    <div className={`card metric tone-${tone}`}>
+      <span className="stat-icon">{icon}</span>
+      <span className="metric-label">{label}</span>
+      <strong>{value}</strong>
+      <em>{sub}</em>
+    </div>
+  );
+}
+
+/** One cell per day for 12 weeks, shaded by tasks completed + focus sessions. */
+function Heatmap() {
+  const { data, today } = useStore();
+  const end = new Date(today + "T00:00:00");
+  // Finish the grid on Saturday of this week so columns are whole weeks.
+  const lastDay = shiftDate(today, 6 - end.getDay());
+  const cells = Array.from({ length: 84 }, (_, i) => shiftDate(lastDay, i - 83));
+  const doneByDay = new Map<string, number>();
+  for (const t of data.tasks) if (t.completed) doneByDay.set(t.dueDate, (doneByDay.get(t.dueDate) ?? 0) + 1);
+  return (
+    <div className="heatmap">
+      {cells.map((ds) => {
+        const score = (doneByDay.get(ds) ?? 0) + sessionsOn(data, ds);
+        const level = ds > today ? -1 : score === 0 ? 0 : score <= 2 ? 1 : score <= 4 ? 2 : score <= 7 ? 3 : 4;
+        return (
+          <i
+            key={ds}
+            className={level < 0 ? "future" : `l${level}`}
+            title={ds > today ? "" : `${fmtDateShort(ds)}: ${doneByDay.get(ds) ?? 0} tasks, ${sessionsOn(data, ds)} sessions`}
+          />
+        );
+      })}
+    </div>
   );
 }
 
@@ -146,29 +184,28 @@ function GoalBreakdown({ tasks }: { tasks: TaskDTO[] }) {
     rows.push({
       key: "none",
       title: "No goal",
-      color: "var(--text-muted)",
+      color: "var(--text-3)",
       total: none.length,
       done: none.filter((t) => t.completed).length,
     });
   }
-  if (!rows.length) return <div className="empty-state compact-empty">No category data yet.</div>;
+  if (!rows.length) return <p className="muted small">No tasks in this period yet.</p>;
   return (
-    <div className="breakdown-list">
+    <div className="breakdown">
       {rows.map((r) => {
         const pct = r.total ? Math.round((r.done / r.total) * 100) : 0;
         return (
           <div className="breakdown-row" key={r.key}>
+            <span className="dot" style={{ background: r.color }} />
             <div>
-              <span className="goal-dot" style={{ background: r.color }} />
               <strong>{r.title}</strong>
-              <small>
-                {r.done}/{r.total} complete
-              </small>
+              <div className="bar bar-sm">
+                <i style={{ width: `${pct}%`, background: r.color }} />
+              </div>
             </div>
-            <div className="mini-track">
-              <i style={{ width: `${pct}%`, background: r.color }} />
-            </div>
-            <b>{pct}%</b>
+            <em>
+              {r.done}/{r.total}
+            </em>
           </div>
         );
       })}
@@ -179,39 +216,24 @@ function GoalBreakdown({ tasks }: { tasks: TaskDTO[] }) {
 function Matrix({ tasks }: { tasks: TaskDTO[] }) {
   const open = tasks.filter((t) => !t.completed);
   const keys = [
-    ["do-first", "Do First"],
-    ["schedule", "Schedule"],
-    ["delegate", "Delegate"],
-    ["eliminate", "Eliminate"],
+    ["do-first", "Do first", "Urgent · important"],
+    ["schedule", "Schedule", "Important"],
+    ["delegate", "Delegate", "Urgent"],
+    ["eliminate", "Eliminate", "Neither"],
   ] as const;
+  const unset = open.filter((t) => !t.eisenhower).length;
   return (
-    <div className="matrix-grid">
-      {keys.map(([k, label]) => (
-        <div className="matrix-cell" key={k}>
-          <div className="matrix-count">{open.filter((t) => t.eisenhower === k).length}</div>
-          <div className="matrix-label">{label}</div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function LevelCard({ xp }: { xp: number }) {
-  const lvl = getLevelInfo(xp);
-  return (
-    <div className="analytics-card">
-      <h4>Level</h4>
-      <div className="level-display">
-        <div className="level-number">{lvl.level}</div>
-        <div className="streak-label">
-          {xp} XP total
-          <br />
-          {100 - lvl.xpInLevel} XP to level {lvl.level + 1}
-        </div>
+    <>
+      <div className="matrix">
+        {keys.map(([k, label, hint]) => (
+          <div className={`matrix-cell m-${k}`} key={k}>
+            <strong>{open.filter((t) => t.eisenhower === k).length}</strong>
+            <span>{label}</span>
+            <em>{hint}</em>
+          </div>
+        ))}
       </div>
-      <div className="mini-track" style={{ marginTop: 14 }}>
-        <i style={{ width: `${lvl.xpInLevel}%`, background: "var(--xp-gold)" }} />
-      </div>
-    </div>
+      {unset > 0 && <p className="muted small">{unset} open task(s) have no priority set. Set it in the task editor.</p>}
+    </>
   );
 }

@@ -10,8 +10,10 @@ export default function PrivacyPage() {
   return (
     <div className="legal-page">
       <article className="legal-card">
-        <Link href="/" className="sidebar-brand legal-brand">
-          <Target />
+        <Link href="/" className="brand legal-brand">
+          <span className="brand-mark">
+            <Target />
+          </span>
           <span>Focus System</span>
         </Link>
         <h1>Privacy Policy</h1>

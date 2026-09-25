@@ -61,7 +61,7 @@ export function DialogProvider({ children }: { children: ReactNode }) {
       {children}
       {open && (
         <div
-          className="modal-overlay active"
+          className="modal-overlay"
           style={{ zIndex: 600 }}
           onMouseDown={(e) => e.target === e.currentTarget && close(open.kind === "confirm" ? false : null)}
           onKeyDown={(e) => e.key === "Escape" && close(open.kind === "confirm" ? false : null)}
@@ -83,7 +83,7 @@ function ConfirmBody({ opts, onClose }: { opts: ConfirmOptions; onClose: (v: boo
   return (
     <div className="modal modal-sm" role="alertdialog" aria-modal="true">
       <h3>{opts.title}</h3>
-      {opts.message && <p className="modal-text">{opts.message}</p>}
+      {opts.message && <p className="muted">{opts.message}</p>}
       <div className="modal-actions">
         <button className="btn btn-secondary" onClick={() => onClose(false)}>
           Cancel
@@ -103,7 +103,7 @@ function GoalBody({ opts, onClose }: { opts: GoalDialogOptions; onClose: (v: Goa
   return (
     <div className="modal modal-sm" role="dialog" aria-modal="true">
       <h3>{opts.title}</h3>
-      <div className="form-group">
+      <div className="field">
         <label>Goal name</label>
         <input
           autoFocus
@@ -114,7 +114,7 @@ function GoalBody({ opts, onClose }: { opts: GoalDialogOptions; onClose: (v: Goa
           onKeyDown={(e) => e.key === "Enter" && submit()}
         />
       </div>
-      <div className="form-group">
+      <div className="field">
         <label>Color</label>
         <div className="color-swatches">
           {[...new Set([...GOAL_COLORS, "#6366F1", "#10B981", "#0EA5E9", "#F97316"])].map((c) => (

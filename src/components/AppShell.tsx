@@ -7,10 +7,11 @@ import { DialogProvider } from "@/lib/client/dialogs";
 import { StoreProvider, useStore } from "@/lib/client/store";
 import { FocusTimerProvider } from "@/lib/client/timer";
 import type { BootstrapDTO } from "@/lib/shared/types";
-import Sidebar from "./Sidebar";
+import Sidebar, { MobileNav } from "./Sidebar";
 import Header from "./Header";
 import TaskEditor from "./TaskEditor";
 import FocusOverlay from "./FocusOverlay";
+import LevelUp from "./LevelUp";
 
 export default function AppShell({ initial, children }: { initial: BootstrapDTO; children: ReactNode }) {
   return (
@@ -64,13 +65,15 @@ function Shell({ children, initialEvents }: { children: ReactNode; initialEvents
         <Sidebar />
         <main className="main">
           <Header />
-          <div className={`content ${pathname === "/calendar" ? "calendar-content" : ""}`} id="content">
+          <div className={`content ${pathname === "/calendar" ? "content-wide" : ""}`} id="content">
             {children}
           </div>
         </main>
+        <MobileNav />
       </div>
       <TaskEditor />
       <FocusOverlay />
+      <LevelUp />
     </>
   );
 }

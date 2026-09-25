@@ -1,7 +1,8 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Download, LogOut, Smartphone, Upload } from "lucide-react";
+import { Download, LogOut, Moon, Smartphone, Sun, Upload } from "lucide-react";
+import { useTheme } from "@/lib/client/theme";
 import { api, hardNavigate } from "@/lib/client/api";
 import { useMounted } from "@/lib/client/clock";
 import { markLegacyImported, readLegacyData } from "@/lib/client/legacy";
@@ -17,6 +18,7 @@ export default function SettingsPage() {
   const { data, setUser, updateSettings, refresh } = useStore();
   const toast = useToast();
   const { confirm } = useDialogs();
+  const { theme, toggle } = useTheme();
   const user = data.user;
 
   const [name, setName] = useState(user.name);
@@ -152,13 +154,13 @@ export default function SettingsPage() {
   };
 
   return (
-    <>
-      <section className="analytics-head">
+    <div className="page">
+      <div className="page-head">
         <div>
-          <div className="daily-label">Account</div>
+          <div className="eyebrow">Account</div>
           <h1>Settings</h1>
         </div>
-      </section>
+      </div>
 
       <div className="settings-grid">
         <div className="settings-card">
@@ -227,11 +229,27 @@ export default function SettingsPage() {
         </div>
 
         <div className="settings-card">
+          <h4>Appearance</h4>
+          <div className="toggle-row">
+            <span>Theme</span>
+            <div className="segmented segmented-sm">
+              <button className={theme === "dark" ? "active" : ""} onClick={() => theme !== "dark" && toggle()}>
+                <Moon /> Dark
+              </button>
+              <button className={theme === "light" ? "active" : ""} onClick={() => theme !== "light" && toggle()}>
+                <Sun /> Light
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="settings-card">
           <h4>Reminders & alarms</h4>
           <div className="toggle-row">
             <span>Focus alarm sound</span>
             <input
               type="checkbox"
+              className="switch"
               checked={user.settings.alarmEnabled}
               onChange={(e) => updateSettings({ alarmEnabled: e.target.checked })}
             />
@@ -315,6 +333,6 @@ export default function SettingsPage() {
           </div>
         </div>
       </div>
-    </>
+    </div>
   );
 }

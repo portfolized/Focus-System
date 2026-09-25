@@ -1,7 +1,9 @@
 import type { BootstrapDTO } from "@/lib/shared/types";
 
 export const SESSION_COOKIE = "fs_session";
-export const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:4000";
+// Tolerate a trailing slash or a missing protocol in the env var.
+const rawBackendUrl = (process.env.BACKEND_URL ?? "http://localhost:4000").trim().replace(/\/+$/, "");
+export const BACKEND_URL = /^https?:\/\//.test(rawBackendUrl) ? rawBackendUrl : `https://${rawBackendUrl}`;
 
 /**
  * Server-side call to the backend's GET /api/bootstrap with the visitor's

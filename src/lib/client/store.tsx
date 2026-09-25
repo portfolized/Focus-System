@@ -92,6 +92,9 @@ interface Store {
   setOverlayOpen: (open: boolean) => void;
   musicPlaying: boolean;
   setMusicPlaying: (playing: boolean) => void;
+  /** Level just reached, shown as a celebration until dismissed. */
+  levelUp: number | null;
+  dismissLevelUp: () => void;
 }
 
 const StoreContext = createContext<Store | null>(null);
@@ -127,6 +130,7 @@ export function StoreProvider({ initial, children }: { initial: BootstrapDTO; ch
   const [editingTaskId, setEditingTaskId] = useState<string | null | undefined>(undefined);
   const [overlayOpen, setOverlayOpen] = useState(false);
   const [musicPlaying, setMusicPlaying] = useState(false);
+  const [levelUp, setLevelUp] = useState<number | null>(null);
   const refreshing = useRef(false);
 
   const setUi = useCallback((patch: Partial<UIState>) => setUiState((u) => ({ ...u, ...patch })), []);
@@ -135,8 +139,9 @@ export function StoreProvider({ initial, children }: { initial: BootstrapDTO; ch
     (events: XpEvent[] | undefined) => {
       if (!events?.length) return;
       for (const e of events) {
-        if (e.leveledUp) toast(`🎉 LEVEL UP! You reached Level ${e.level}!`, "success");
-        else if (e.amount > 0) toast(`+${e.amount} XP: ${e.reason}`, "success");
+        if (e.amount > 0) toast(`+${e.amount} XP · ${e.reason}`, "xp");
+        else if (e.amount < 0) toast(`${e.amount} XP · ${e.reason}`, "info");
+        if (e.leveledUp) setLevelUp(e.level);
       }
       const last = events[events.length - 1];
       setData((d) => ({ ...d, user: { ...d.user, xp: last.total } }));
@@ -517,12 +522,14 @@ export function StoreProvider({ initial, children }: { initial: BootstrapDTO; ch
       setOverlayOpen,
       musicPlaying,
       setMusicPlaying,
+      levelUp,
+      dismissLevelUp: () => setLevelUp(null),
     }),
     [
       data, today, online, serverOffset, ui, setUi, refresh, createTask, updateTask, toggleComplete, toggleFrog,
       clearFrog, deleteTask, addSubtask, updateSubtask, deleteSubtask, createGoal, editGoal, deleteGoal,
       focusAction, setFocusMode, attachTask, applyFocus, handleEvents, updateSettings, setUser, editingTaskId, overlayOpen,
-      musicPlaying,
+      musicPlaying, levelUp,
     ],
   );
 

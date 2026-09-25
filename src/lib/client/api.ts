@@ -32,7 +32,8 @@ export async function api<T>(path: string, init: { method?: string; body?: unkno
       body: init.body === undefined ? undefined : JSON.stringify(init.body),
     });
   } catch {
-    throw new ApiClientError(0, "You appear to be offline");
+    const offline = typeof navigator !== "undefined" && navigator.onLine === false;
+    throw new ApiClientError(0, offline ? "You appear to be offline" : "Can't reach the server. Please try again.");
   }
 
   const data = await res.json().catch(() => ({}));
