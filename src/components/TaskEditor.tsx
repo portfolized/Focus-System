@@ -48,7 +48,8 @@ function EditorModal({ task: t }: { task: TaskDTO | null }) {
   const [title, setTitle] = useState(t?.title ?? "");
   const [goalId, setGoalId] = useState(t ? (t.goalId ?? "") : (ui.activeGoalId ?? ""));
   const [description, setDescription] = useState(t?.description ?? "");
-  const [dueDate, setDueDate] = useState(t?.dueDate ?? (ui.selectedDate > today ? ui.selectedDate : today));
+  // "" = the goal's queue (no date yet).
+  const [dueDate, setDueDate] = useState(t ? (t.dueDate ?? "") : ui.selectedDate > today ? ui.selectedDate : today);
   const [startTime, setStartTime] = useState(t?.startTime ?? "");
   const [endTime, setEndTime] = useState(t?.endTime ?? "");
   const [eisenhower, setEisenhower] = useState<Eisenhower | null>(t?.eisenhower ?? null);
@@ -74,10 +75,10 @@ function EditorModal({ task: t }: { task: TaskDTO | null }) {
   const save = async () => {
     const cleanTitle = title.trim();
     if (!cleanTitle) return toast("Title is required", "error");
-    const due = dueDate;
+    const due = dueDate || null;
     const start = startTime || null;
     const scheduleChanged = !t || due !== t.dueDate || start !== t.startTime;
-    if (scheduleChanged && due < today) return toast("Cannot schedule tasks in the past", "error");
+    if (scheduleChanged && due && due < today) return toast("Cannot schedule tasks in the past", "error");
     if (scheduleChanged && start && due === today && (timeToMinutes(start) ?? 0) <= nowMinutes()) {
       return toast("Cannot set a start time in the past for today", "error");
     }
@@ -169,7 +170,7 @@ function EditorModal({ task: t }: { task: TaskDTO | null }) {
             </select>
           </div>
           <div className="field">
-            <label>Due date</label>
+            <label>Due date {dueDate === "" && <em className="muted">· in queue, no date</em>}</label>
             <div className="input-row">
               <input type="date" value={dueDate} min={today} onChange={(e) => setDueDate(e.target.value)} />
               <button
@@ -178,6 +179,14 @@ function EditorModal({ task: t }: { task: TaskDTO | null }) {
                 onClick={() => setDueDate(today)}
               >
                 Today
+              </button>
+              <button
+                type="button"
+                className={`toggle-chip toggle-chip-teal ${dueDate === "" ? "on" : ""}`}
+                onClick={() => setDueDate("")}
+                title="No date — keep it in the goal's queue"
+              >
+                Queue
               </button>
             </div>
           </div>

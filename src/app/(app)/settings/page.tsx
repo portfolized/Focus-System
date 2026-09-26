@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Download, LogOut, Moon, Smartphone, Sun, Upload } from "lucide-react";
+import { Coffee, Download, Gift, LogOut, Moon, Smartphone, Sofa, Sun, Trash2, Upload } from "lucide-react";
 import { useTheme } from "@/lib/client/theme";
 import { api, hardNavigate } from "@/lib/client/api";
 import { useMounted } from "@/lib/client/clock";
@@ -9,7 +9,7 @@ import { markLegacyImported, readLegacyData } from "@/lib/client/legacy";
 import { useDialogs } from "@/lib/client/dialogs";
 import { useStore } from "@/lib/client/store";
 import { useToast } from "@/lib/client/toast";
-import type { UserDTO } from "@/lib/shared/types";
+import type { BreakIdea, UserDTO } from "@/lib/shared/types";
 
 /** Public address of the Node.js backend that the app talks to. */
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
@@ -246,7 +246,7 @@ export default function SettingsPage() {
         <div className="settings-card">
           <h4>Reminders & alarms</h4>
           <div className="toggle-row">
-            <span>Focus alarm sound</span>
+            <span>Alarm sound (focus & tasks)</span>
             <input
               type="checkbox"
               className="switch"
@@ -255,22 +255,28 @@ export default function SettingsPage() {
             />
           </div>
           <div className="field">
-            <label>Task reminders (mobile app)</label>
+            <label>Task start alarm (mobile app)</label>
             <select
               value={user.settings.reminderMinutes}
               onChange={(e) => updateSettings({ reminderMinutes: Number(e.target.value) })}
             >
               <option value={-1}>Off</option>
               <option value={0}>At start time</option>
+              <option value={1}>1 minute before</option>
               <option value={5}>5 minutes before</option>
               <option value={10}>10 minutes before</option>
               <option value={15}>15 minutes before</option>
               <option value={30}>30 minutes before</option>
               <option value={60}>1 hour before</option>
             </select>
-            <small>Tasks with a start time trigger a phone notification.</small>
+            <small>
+              Tasks with a start time ring on your phone, and ring again at their end time. The website rings when a
+              focus session or break ends.
+            </small>
           </div>
         </div>
+
+        <BreakRewardsCard />
 
         <div className="settings-card">
           <h4>Your data</h4>
@@ -332,6 +338,116 @@ export default function SettingsPage() {
             </button>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/** Your own break rewards, offered next to the built-in ideas when a focus session ends. */
+function BreakRewardsCard() {
+  const { data, updateSettings } = useStore();
+  const settings = data.user.settings;
+  const list = settings.customBreaks ?? [];
+  const [title, setTitle] = useState("");
+  const [emoji, setEmoji] = useState("");
+  const [length, setLength] = useState<BreakIdea["length"]>("short");
+  const [saving, setSaving] = useState(false);
+
+  const save = async (next: BreakIdea[]) => {
+    setSaving(true);
+    const ok = await updateSettings({ customBreaks: next });
+    setSaving(false);
+    return ok;
+  };
+
+  const add = async () => {
+    if (!title.trim() || saving) return;
+    const idea: BreakIdea = {
+      id: Date.now().toString(36),
+      title: title.trim(),
+      emoji: [...emoji.trim()][0] ?? "🎁",
+      length,
+    };
+    if (await save([...list, idea])) {
+      setTitle("");
+      setEmoji("");
+    }
+  };
+
+  const group = (len: BreakIdea["length"], label: string, minutes: number) => {
+    const items = list.filter((b) => b.length === len);
+    return (
+      <div className="field">
+        <label>
+          {label} · {minutes} min
+        </label>
+        {items.length === 0 ? (
+          <small>None yet — the built-in ideas are used.</small>
+        ) : (
+          <div className="break-list">
+            {items.map((b) => (
+              <div key={b.id} className="break-item">
+                <span className="break-emoji">{b.emoji || "🎁"}</span>
+                <span>{b.title}</span>
+                <button
+                  className="icon-btn icon-btn-xs danger"
+                  title="Remove"
+                  disabled={saving}
+                  onClick={() => save(list.filter((x) => x.id !== b.id))}
+                >
+                  <Trash2 />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div className="settings-card">
+      <h4>
+        <Gift style={{ width: 13, height: 13, verticalAlign: "-2px" }} /> Break rewards
+      </h4>
+      <p>
+        Breaks unlock after each finished focus session, and you pick a reward. Add your own favourites — they show
+        first, next to the built-in ideas.
+      </p>
+      {group("short", "Quick treats (short break)", settings.pomoShortBreak)}
+      {group("long", "Bigger treats (long break)", settings.pomoLongBreak)}
+      <div className="field">
+        <label>Add a reward</label>
+        <div className="input-row">
+          <input
+            className="emoji-input"
+            placeholder="🎁"
+            maxLength={8}
+            value={emoji}
+            aria-label="Emoji"
+            onChange={(e) => setEmoji(e.target.value)}
+          />
+          <input
+            placeholder="e.g. Make a mango lassi"
+            maxLength={120}
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && add()}
+          />
+        </div>
+      </div>
+      <div className="actions">
+        <div className="segmented segmented-sm">
+          <button className={length === "short" ? "active" : ""} onClick={() => setLength("short")}>
+            <Coffee /> Quick
+          </button>
+          <button className={length === "long" ? "active" : ""} onClick={() => setLength("long")}>
+            <Sofa /> Bigger
+          </button>
+        </div>
+        <button className="btn btn-primary" onClick={add} disabled={saving || !title.trim()}>
+          Add reward
+        </button>
       </div>
     </div>
   );

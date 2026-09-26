@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   AlarmClock,
   ArrowRight,
+  CalendarDays,
   Check,
   ChevronDown,
   CircleCheck,
@@ -84,7 +86,9 @@ export default function TodayPage() {
               </defs>
             </svg>
             <div>
-              <div className="eyebrow">{fmtDateShort(today)} · Today</div>
+              <Link href="/calendar" className="eyebrow eyebrow-link" title="View calendar">
+                {fmtDateShort(today)} · Today <CalendarDays />
+              </Link>
               <h1>
                 {total === 0
                   ? "Plan your day"
@@ -170,6 +174,13 @@ export default function TodayPage() {
 
       <QuickAdd />
 
+      <div className="section-head week-head">
+        <h3>This week</h3>
+        <span className="spacer" />
+        <Link href="/calendar" className="btn btn-sm btn-secondary">
+          <CalendarDays /> View calendar
+        </Link>
+      </div>
       <WeekStrip />
 
       <section className="goal-bar">

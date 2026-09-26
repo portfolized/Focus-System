@@ -11,6 +11,7 @@ import Sidebar, { MobileNav } from "./Sidebar";
 import Header from "./Header";
 import TaskEditor from "./TaskEditor";
 import FocusOverlay from "./FocusOverlay";
+import FocusPickers from "./FocusPickers";
 import LevelUp from "./LevelUp";
 
 export default function AppShell({ initial, children }: { initial: BootstrapDTO; children: ReactNode }) {
@@ -73,6 +74,7 @@ function Shell({ children, initialEvents }: { children: ReactNode; initialEvents
       </div>
       <TaskEditor />
       <FocusOverlay />
+      <FocusPickers />
       <LevelUp />
     </>
   );

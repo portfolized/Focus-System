@@ -3,11 +3,14 @@
 import { useRef, useState } from "react";
 import {
   Brain,
+  Check,
   Coffee,
   Flame,
+  Gift,
+  ListChecks,
+  Lock,
   Maximize2,
   Music,
-  Pause,
   Play,
   RotateCcw,
   Settings2,
@@ -17,10 +20,12 @@ import {
   Timer,
 } from "lucide-react";
 import YoutubeFrame from "@/components/YoutubeFrame";
-import { tasksForDate, useStore, type FocusMode } from "@/lib/client/store";
+import { useAttachedTask, usePrimaryFocus } from "@/components/FocusPickers";
+import { useStore, type FocusMode } from "@/lib/client/store";
+import { breakReady, isMidPhase } from "@/lib/client/breaks";
+import { useDialogs } from "@/lib/client/dialogs";
 import { useTimer } from "@/lib/client/timer";
 import { useToast } from "@/lib/client/toast";
-import { requestNotificationPermission } from "@/lib/client/sound";
 import { fmtClock, focusModeLabel, XP_REWARDS, youtubeId } from "@/lib/shared/logic";
 import type { UserSettings } from "@/lib/shared/types";
 
@@ -34,8 +39,10 @@ const MODES: { mode: FocusMode; label: string; icon: typeof Brain }[] = [
 ];
 
 export default function FocusPage() {
-  const { data, today, focusAction, setFocusMode, attachTask, updateSettings, overlayOpen, setOverlayOpen, musicPlaying, setMusicPlaying } =
+  const { data, today, focusAction, setFocusMode, setPicker, toggleComplete, updateSettings, overlayOpen, setOverlayOpen, musicPlaying, setMusicPlaying } =
     useStore();
+  const { confirm } = useDialogs();
+  const primary = usePrimaryFocus();
   const { secondsLeft, progress } = useTimer();
   const toast = useToast();
   const focus = data.focus;
@@ -48,9 +55,8 @@ export default function FocusPage() {
     setUrl(settings.youtubeUrl);
   }
 
-  const openTasks = tasksForDate(data.tasks, today).filter((t) => !t.completed);
-  const attached = focus.attachedTaskId ? data.tasks.find((t) => t.id === focus.attachedTaskId) : null;
-  const options = attached && !openTasks.includes(attached) ? [attached, ...openTasks] : openTasks;
+  const attached = useAttachedTask();
+  const attachedGoal = attached?.goalId ? data.goals.find((g) => g.id === attached.goalId) : null;
   const logs = data.pomoLogs.filter((l) => l.date === today);
   const sessionsToday = logs.reduce((s, l) => s + (l.sessions || 1), 0);
   const minutesToday = logs.reduce((s, l) => s + (l.minutes || (l.sessions || 1) * settings.pomoWork), 0);
@@ -83,36 +89,47 @@ export default function FocusPage() {
     if ((await saveMusic(true)) && youtubeId(url)) setMusicPlaying(true);
   };
 
-  const start = async () => {
-    requestNotificationPermission();
-    await focusAction("start");
-    if (youtubeId(settings.youtubeUrl)) setMusicPlaying(true);
-  };
-  const pause = async () => {
-    await focusAction("pause");
-    setMusicPlaying(false);
-  };
   const reset = async () => {
+    const ok = await confirm({
+      title: "Reset this session?",
+      message: "The time spent so far will not count as a session.",
+      confirmLabel: "Reset",
+      danger: true,
+    });
+    if (!ok) return;
     await focusAction("reset");
     setMusicPlaying(false);
   };
+
+  // Breaks unlock only after a finished focus session; then short/long can be swapped.
+  const tabClick = (mode: FocusMode) => {
+    if (focus.mode === mode) return;
+    if (focus.running) return toast("Pause the timer to switch", "info");
+    if (isWork) return toast("Finish your focus session to unlock a break 🔒", "info");
+    setFocusMode(mode);
+  };
+  const PrimaryIcon = primary.icon;
 
   return (
     <div className="page focus-page">
       <section className={`card focus-main ${isWork ? "" : "break"} ${focus.running ? "running" : ""}`}>
         <div className="segmented" role="tablist" aria-label="Timer mode">
-          {MODES.map(({ mode, label, icon: Icon }) => (
-            <button
-              key={mode}
-              role="tab"
-              aria-selected={focus.mode === mode}
-              className={focus.mode === mode ? "active" : ""}
-              onClick={() => focus.mode !== mode && setFocusMode(mode)}
-            >
-              <Icon />
-              <span>{label}</span>
-            </button>
-          ))}
+          {MODES.map(({ mode, label, icon: Icon }) => {
+            const locked = mode !== "work" && isWork;
+            return (
+              <button
+                key={mode}
+                role="tab"
+                aria-selected={focus.mode === mode}
+                aria-label={locked ? `${label} (locked until focus ends)` : label}
+                className={`${focus.mode === mode ? "active" : ""} ${locked ? "locked" : ""}`}
+                onClick={() => tabClick(mode)}
+              >
+                {locked ? <Lock /> : <Icon />}
+                <span>{label}</span>
+              </button>
+            );
+          })}
         </div>
 
         <div className="timer">
@@ -137,54 +154,99 @@ export default function FocusPage() {
           <div className="timer-center">
             <span className="timer-mode">{focusModeLabel(focus.mode)}</span>
             <strong id="timer-display">{fmtClock(secondsLeft)}</strong>
-            <span className="timer-sub">{isWork ? `+${XP_REWARDS.focusSession} XP on finish` : "Rest your eyes"}</span>
+            <span className="timer-sub">
+              {isWork
+                ? `+${XP_REWARDS.focusSession} XP on finish`
+                : breakReady(focus)
+                  ? "Break unlocked 🎁"
+                  : (focus.breakActivity ?? "Rest your eyes")}
+            </span>
           </div>
         </div>
 
-        <label className="attach">
-          <span>Working on</span>
-          <select
-            id="focus-task-select"
-            value={focus.attachedTaskId ?? ""}
-            onChange={(e) => attachTask(e.target.value || null)}
-          >
-            <option value="">No task (free focus)</option>
-            {options.map((t) => {
-              const g = t.goalId ? data.goals.find((x) => x.id === t.goalId) : null;
-              return (
-                <option key={t.id} value={t.id}>
-                  {t.isPriority ? "⚡ " : ""}
-                  {t.title}
-                  {g ? ` · ${g.title}` : ""}
-                </option>
-              );
-            })}
-          </select>
-        </label>
+        {isWork ? (
+          <div className="focus-on">
+            <span className="focus-on-label">Focusing on</span>
+            {attached ? (
+              <div className="focus-on-task">
+                <button
+                  className={`check check-sm ${attached.completed ? "on" : ""}`}
+                  aria-label={attached.completed ? "Mark as not done" : "Mark as done"}
+                  onClick={() => toggleComplete(attached.id)}
+                >
+                  <Check />
+                </button>
+                <div>
+                  <strong className={attached.completed ? "struck" : ""}>{attached.title}</strong>
+                  <small>
+                    {attachedGoal ? `${attachedGoal.title} · ` : ""}
+                    {attached.pomodoroCount} session{attached.pomodoroCount === 1 ? "" : "s"} so far
+                  </small>
+                </div>
+                <button
+                  className="btn btn-sm btn-secondary"
+                  onClick={() => setPicker(focus.running || isMidPhase(focus) ? "switch" : "task")}
+                >
+                  Change
+                </button>
+              </div>
+            ) : (
+              <div className="focus-on-task">
+                <span className="muted small">No task yet — you pick one when you start.</span>
+                <button className="btn btn-sm btn-secondary" onClick={() => setPicker(isMidPhase(focus) ? "switch" : "task")}>
+                  <ListChecks /> Pick task
+                </button>
+              </div>
+            )}
+          </div>
+        ) : breakReady(focus) ? (
+          <div className="focus-on break-unlocked">
+            <span className="focus-on-label">Break unlocked</span>
+            <div className="focus-on-task">
+              <strong>🎉 Session done! Pick a reward for your break.</strong>
+              <button className="btn btn-sm btn-primary" onClick={() => setPicker("break")}>
+                <Gift /> Choose
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="focus-on">
+            <span className="focus-on-label">Your reward</span>
+            <div className="focus-on-task">
+              <strong>{focus.breakActivity ?? "Just resting — no plan."}</strong>
+              <button className="btn btn-sm btn-secondary" onClick={() => setPicker("break")}>
+                Change
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className="timer-controls">
-          <button className="round-btn" onClick={reset} title="Reset" aria-label="Reset">
-            <RotateCcw />
-          </button>
-          {focus.running ? (
-            <button className="round-btn round-btn-lg" onClick={pause} title="Pause" aria-label="Pause">
-              <Pause />
-            </button>
-          ) : (
-            <button className="round-btn round-btn-lg" onClick={start} title="Start" aria-label="Start">
-              <Play />
+          {isWork && (focus.running || isMidPhase(focus)) && (
+            <button className="round-btn" onClick={reset} title="Reset" aria-label="Reset">
+              <RotateCcw />
             </button>
           )}
           <button
-            className="round-btn"
-            onClick={() => focusAction("skip")}
-            title={isWork ? "Skip is available during breaks" : "Skip break"}
-            aria-label="Skip break"
-            disabled={isWork}
+            className={`round-btn round-btn-lg ${!focus.running && !isWork && breakReady(focus) ? "gift" : ""}`}
+            onClick={primary.run}
+            title={primary.label}
+            aria-label={primary.label}
           >
-            <SkipForward />
+            <PrimaryIcon />
           </button>
+          {!isWork && (
+            <button
+              className="round-btn"
+              onClick={() => focusAction("skip")}
+              title={breakReady(focus) ? "Skip break" : "End break"}
+              aria-label={breakReady(focus) ? "Skip break" : "End break"}
+            >
+              <SkipForward />
+            </button>
+          )}
         </div>
+        <span className="primary-hint">{primary.label}</span>
 
         <div className="cycle">
           <div className="cycle-dots" title={`${doneInCycle} of ${interval} sessions until a long break`}>
@@ -240,7 +302,7 @@ export default function FocusPage() {
                   );
                 })
             ) : (
-              <p className="muted small">No sessions yet today. Press play to start your first one.</p>
+              <p className="muted small">No sessions yet today. Press play and pick a task to start your first one.</p>
             )}
           </div>
         </div>

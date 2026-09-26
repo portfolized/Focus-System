@@ -35,7 +35,7 @@ export default function Sidebar() {
 
       <nav className="side-nav">
         {NAV.map(({ href, label, icon: Icon }) => (
-          <Link key={href} href={href} className={`side-link ${pathname === href ? "active" : ""}`}>
+          <Link key={href} href={href} className={`side-link ${isActive(pathname, href) ? "active" : ""}`}>
             <Icon />
             <span>{label}</span>
             {href === "/" && open > 0 && <em className="side-badge">{open}</em>}
@@ -83,12 +83,18 @@ export default function Sidebar() {
   );
 }
 
+/** Goal detail pages (/goals/…) keep "Goals" highlighted; the calendar belongs to Today. */
+function isActive(pathname: string, href: string) {
+  if (href === "/") return pathname === "/" || pathname === "/calendar";
+  return pathname === href || pathname.startsWith(href + "/");
+}
+
 export function MobileNav() {
   const pathname = usePathname();
   return (
     <nav className="mobile-nav">
       {NAV.map(({ href, label, icon: Icon }) => (
-        <Link key={href} href={href} className={pathname === href ? "active" : ""}>
+        <Link key={href} href={href} className={isActive(pathname, href) ? "active" : ""}>
           <Icon />
           <span>{label}</span>
         </Link>

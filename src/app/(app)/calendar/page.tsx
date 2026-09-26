@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { CalendarPlus, ChevronLeft, ChevronRight, Lock, Plus, Zap } from "lucide-react";
+import Link from "next/link";
+import { ArrowLeft, CalendarPlus, ChevronLeft, ChevronRight, Lock, Plus, Zap } from "lucide-react";
 import TaskCard from "@/components/TaskCard";
 import { tasksForDate, useStore } from "@/lib/client/store";
 import { useToast } from "@/lib/client/toast";
@@ -68,7 +69,9 @@ export default function CalendarPage() {
       <div className="card calendar-main">
         <div className="page-head">
           <div>
-            <div className="eyebrow">Calendar</div>
+            <Link href="/" className="eyebrow eyebrow-link">
+              <ArrowLeft /> Today · Calendar
+            </Link>
             <h1>
               {MONTHS[cm]} {cy}
             </h1>

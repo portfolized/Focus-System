@@ -14,7 +14,7 @@ import { api, ApiClientError } from "./api";
 import { useNow } from "./clock";
 import { useToast } from "./toast";
 import { useDialogs } from "./dialogs";
-import { GOAL_COLORS, toDateStr } from "@/lib/shared/logic";
+import { fmtDateShort, GOAL_COLORS, toDateStr } from "@/lib/shared/logic";
 import type {
   BootstrapDTO,
   FocusDTO,
@@ -42,7 +42,8 @@ export interface NewTaskInput {
   title: string;
   description?: string;
   goalId?: string | null;
-  dueDate: string;
+  /** null = the goal's queue (no date yet). */
+  dueDate: string | null;
   startTime?: string | null;
   endTime?: string | null;
   eisenhower?: TaskDTO["eisenhower"];
@@ -66,6 +67,8 @@ interface Store {
   createTask: (input: NewTaskInput) => Promise<TaskDTO | null>;
   updateTask: (id: string, patch: TaskPatch) => Promise<TaskDTO | null>;
   toggleComplete: (id: string) => void;
+  /** Put a task on a day, or back into its goal's queue with null. */
+  scheduleTask: (id: string, date: string | null) => Promise<boolean>;
   toggleFrog: (id: string) => void;
   clearFrog: () => void;
   deleteTask: (id: string, skipConfirm?: boolean) => Promise<boolean>;
@@ -75,10 +78,18 @@ interface Store {
 
   createGoal: () => Promise<void>;
   editGoal: (id: string) => Promise<void>;
-  deleteGoal: (id: string) => Promise<void>;
+  /** Asks first; resolves true once the goal is deleted. */
+  deleteGoal: (id: string) => Promise<boolean>;
 
   focusAction: (action: FocusActionName) => Promise<FocusDTO | null>;
   setFocusMode: (mode: FocusMode) => Promise<void>;
+  /** Start a focus session on a task (a task is required to focus). */
+  startFocus: (taskId: string) => Promise<FocusDTO | null>;
+  /** Start the unlocked break with the chosen reward. */
+  startBreak: (mode: "shortBreak" | "longBreak", activity: string | null) => Promise<void>;
+  /** Pop-ups of the focus flow: pick a task to start, pick a reward after a session. */
+  picker: FocusPicker;
+  setPicker: (p: FocusPicker) => void;
   attachTask: (taskId: string | null) => Promise<void>;
   applyFocus: (focus: FocusDTO, serverTime?: number) => void;
   handleEvents: (events: XpEvent[] | undefined) => void;
@@ -96,6 +107,9 @@ interface Store {
   levelUp: number | null;
   dismissLevelUp: () => void;
 }
+
+/** "task" = pick a task and start; "switch" = change the task of a session in progress; "break" = pick a reward. */
+export type FocusPicker = "task" | "switch" | "break" | null;
 
 const StoreContext = createContext<Store | null>(null);
 
@@ -131,6 +145,7 @@ export function StoreProvider({ initial, children }: { initial: BootstrapDTO; ch
   const [overlayOpen, setOverlayOpen] = useState(false);
   const [musicPlaying, setMusicPlaying] = useState(false);
   const [levelUp, setLevelUp] = useState<number | null>(null);
+  const [picker, setPicker] = useState<FocusPicker>(null);
   const refreshing = useRef(false);
 
   const setUi = useCallback((patch: Partial<UIState>) => setUiState((u) => ({ ...u, ...patch })), []);
@@ -249,6 +264,21 @@ export function StoreProvider({ initial, children }: { initial: BootstrapDTO; ch
       updateTask(id, { completed });
     },
     [data.tasks, patchLocalTask, updateTask],
+  );
+
+  const scheduleTask = useCallback(
+    async (id: string, date: string | null) => {
+      patchLocalTask(id, { dueDate: date });
+      const updated = await updateTask(id, { dueDate: date });
+      if (updated) {
+        toast(
+          date === null ? "Moved to the queue" : date === today ? "Added to today" : `Scheduled for ${fmtDateShort(date)}`,
+          "success",
+        );
+      }
+      return !!updated;
+    },
+    [patchLocalTask, updateTask, toast, today],
   );
 
   const toggleFrog = useCallback(
@@ -393,14 +423,14 @@ export function StoreProvider({ initial, children }: { initial: BootstrapDTO; ch
   const deleteGoal = useCallback(
     async (id: string) => {
       const g = data.goals.find((x) => x.id === id);
-      if (!g) return;
+      if (!g) return false;
       const ok = await confirm({
         title: `Delete "${g.title}"?`,
         message: "Tasks in this goal will become uncategorized.",
         confirmLabel: "Delete goal",
         danger: true,
       });
-      if (!ok) return;
+      if (!ok) return false;
       try {
         await api(`/api/goals/${id}`, { method: "DELETE" });
         setData((d) => ({
@@ -409,8 +439,10 @@ export function StoreProvider({ initial, children }: { initial: BootstrapDTO; ch
           tasks: d.tasks.map((t) => (t.goalId === id ? { ...t, goalId: null } : t)),
         }));
         setUiState((u) => (u.activeGoalId === id ? { ...u, activeGoalId: null } : u));
+        return true;
       } catch (err) {
         fail(err);
+        return false;
       }
     },
     [data.goals, confirm, fail],
@@ -446,6 +478,40 @@ export function StoreProvider({ initial, children }: { initial: BootstrapDTO; ch
         const res = await api<{ focus: FocusDTO; serverTime: number }>("/api/focus", {
           method: "POST",
           body: { action: "mode", mode },
+        });
+        applyFocus(res.focus, res.serverTime);
+      } catch (err) {
+        fail(err);
+      }
+    },
+    [applyFocus, fail],
+  );
+
+  const startFocus = useCallback(
+    async (taskId: string) => {
+      setData((d) => ({ ...d, focus: { ...d.focus, attachedTaskId: taskId } }));
+      try {
+        const res = await api<{ focus: FocusDTO; events: XpEvent[]; serverTime: number }>("/api/focus", {
+          method: "POST",
+          body: { action: "start", taskId },
+        });
+        applyFocus(res.focus, res.serverTime);
+        handleEvents(res.events);
+        return res.focus;
+      } catch (err) {
+        fail(err);
+        return null;
+      }
+    },
+    [applyFocus, handleEvents, fail],
+  );
+
+  const startBreak = useCallback(
+    async (mode: "shortBreak" | "longBreak", activity: string | null) => {
+      try {
+        const res = await api<{ focus: FocusDTO; serverTime: number }>("/api/focus", {
+          method: "POST",
+          body: { action: "break", mode, activity },
         });
         applyFocus(res.focus, res.serverTime);
       } catch (err) {
@@ -499,6 +565,7 @@ export function StoreProvider({ initial, children }: { initial: BootstrapDTO; ch
       createTask,
       updateTask,
       toggleComplete,
+      scheduleTask,
       toggleFrog,
       clearFrog,
       deleteTask,
@@ -510,6 +577,10 @@ export function StoreProvider({ initial, children }: { initial: BootstrapDTO; ch
       deleteGoal,
       focusAction,
       setFocusMode,
+      startFocus,
+      startBreak,
+      picker,
+      setPicker,
       attachTask,
       applyFocus,
       handleEvents,
@@ -526,9 +597,9 @@ export function StoreProvider({ initial, children }: { initial: BootstrapDTO; ch
       dismissLevelUp: () => setLevelUp(null),
     }),
     [
-      data, today, online, serverOffset, ui, setUi, refresh, createTask, updateTask, toggleComplete, toggleFrog,
+      data, today, online, serverOffset, ui, setUi, refresh, createTask, updateTask, toggleComplete, scheduleTask, toggleFrog,
       clearFrog, deleteTask, addSubtask, updateSubtask, deleteSubtask, createGoal, editGoal, deleteGoal,
-      focusAction, setFocusMode, attachTask, applyFocus, handleEvents, updateSettings, setUser, editingTaskId, overlayOpen,
+      focusAction, setFocusMode, startFocus, startBreak, picker, attachTask, applyFocus, handleEvents, updateSettings, setUser, editingTaskId, overlayOpen,
       musicPlaying, levelUp,
     ],
   );

@@ -6,6 +6,7 @@ import { useNow } from "./clock";
 import { useStore } from "./store";
 import { useToast } from "./toast";
 import { notify, playAlarm, playChime } from "./sound";
+import { breakReady } from "./breaks";
 import { fmtClock, focusModeLabel } from "@/lib/shared/logic";
 import type { FocusDTO, XpEvent } from "@/lib/shared/types";
 
@@ -18,7 +19,7 @@ const TimerContext = createContext<TimerValue>({ secondsLeft: 0, progress: 0 });
 export const useTimer = () => useContext(TimerContext);
 
 export function FocusTimerProvider({ children }: { children: ReactNode }) {
-  const { data, serverOffset, applyFocus, handleEvents } = useStore();
+  const { data, serverOffset, applyFocus, handleEvents, setPicker } = useStore();
   const toast = useToast();
   const focus = data.focus;
   const now = useNow(250, focus.running);
@@ -36,34 +37,47 @@ export function FocusTimerProvider({ children }: { children: ReactNode }) {
     if (Date.now() - lastAdvance.current < 3000) return;
     pending.current = true;
     lastAdvance.current = Date.now();
-    const prevMode = focus.mode;
-    const prevVersion = focus.version;
     api<{ focus: FocusDTO; events: XpEvent[]; serverTime: number }>("/api/focus")
       .then((res) => {
         applyFocus(res.focus, res.serverTime);
         handleEvents(res.events);
-        if (res.focus.version === prevVersion) return;
-        playChime();
-        if (prevMode === "work") {
-          if (data.user.settings.alarmEnabled) playAlarm();
-          notify("Focus session complete", "Nice work — time for a break.");
-        } else {
-          toast("Break over! Ready to focus.", "info");
-          notify("Break over", "Ready to focus.");
-        }
       })
       .catch(() => {})
       .finally(() => {
         pending.current = false;
       });
-  }, [secondsLeft, focus, applyFocus, handleEvents, toast, data.user.settings.alarmEnabled]);
+  }, [secondsLeft, focus, applyFocus, handleEvents]);
+
+  // A running phase ended (here, or on the phone): ring, then ask for the next step.
+  // Phases don't run into each other: focus → pick a reward break, break → pick the next task.
+  const prev = useRef(focus);
+  useEffect(() => {
+    const before = prev.current;
+    prev.current = focus;
+    if (!before.running || focus.running || focus.version === before.version) return;
+    const alarm = data.user.settings.alarmEnabled;
+    if (before.mode === "work" && breakReady(focus)) {
+      if (alarm) playAlarm();
+      else playChime();
+      notify("Focus session complete 🎉", "Your reward break is unlocked — pick one.");
+      toast("Focus session complete! Pick your reward 🎁", "success");
+      setPicker("break");
+    } else if (before.mode !== "work" && focus.mode === "work") {
+      if (alarm) playAlarm();
+      else playChime();
+      notify("Break over ☕", "Pick a task and start your next focus session.");
+      toast("Break over! Ready to focus.", "info");
+    }
+  }, [focus, data.user.settings.alarmEnabled, toast, setPicker]);
 
   // Show the countdown in the browser tab while running.
   useEffect(() => {
     document.title = focus.running
       ? `${fmtClock(secondsLeft)} · ${focusModeLabel(focus.mode)} — Focus System`
-      : "Focus System";
-  }, [focus.running, focus.mode, secondsLeft]);
+      : breakReady(focus)
+        ? "🎁 Pick your break — Focus System"
+        : "Focus System";
+  }, [focus, secondsLeft]);
 
   const progress = focus.totalSeconds > 0 ? (focus.totalSeconds - secondsLeft) / focus.totalSeconds : 0;
   const value = useMemo(() => ({ secondsLeft, progress }), [secondsLeft, progress]);

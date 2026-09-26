@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, ChevronDown, Clock, ListChecks, Pencil, Play, Plus, Timer, Trash2, X, Zap } from "lucide-react";
 import { useStore } from "@/lib/client/store";
-import { EISENHOWER_LABELS, XP_REWARDS } from "@/lib/shared/logic";
+import { EISENHOWER_LABELS, fmtDateShort, XP_REWARDS } from "@/lib/shared/logic";
 import type { TaskDTO } from "@/lib/shared/types";
 
 export default function TaskCard({ task: t, showDate = false }: { task: TaskDTO; showDate?: boolean }) {
@@ -78,7 +78,8 @@ export default function TaskCard({ task: t, showDate = false }: { task: TaskDTO;
               {goal.title}
             </span>
           )}
-          {showDate && t.dueDate && t.dueDate !== today && <span className="tag">{t.dueDate}</span>}
+          {showDate && t.dueDate && t.dueDate !== today && <span className="tag">{fmtDateShort(t.dueDate)}</span>}
+          {t.dueDate === null && <span className="tag tag-queue">Queue</span>}
           {t.eisenhower && <span className={`tag tag-${t.eisenhower}`}>{EISENHOWER_LABELS[t.eisenhower]}</span>}
           {t.startTime && (
             <span className="meta">
