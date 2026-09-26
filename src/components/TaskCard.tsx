@@ -78,7 +78,7 @@ export default function TaskCard({ task: t, showDate = false }: { task: TaskDTO;
               {goal.title}
             </span>
           )}
-          {showDate && t.dueDate !== today && <span className="tag">{t.dueDate}</span>}
+          {showDate && t.dueDate && t.dueDate !== today && <span className="tag">{t.dueDate}</span>}
           {t.eisenhower && <span className={`tag tag-${t.eisenhower}`}>{EISENHOWER_LABELS[t.eisenhower]}</span>}
           {t.startTime && (
             <span className="meta">

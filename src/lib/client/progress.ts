@@ -107,6 +107,7 @@ export function achievements(data: BootstrapDTO): Achievement[] {
   const level = getLevelInfo(data.user.xp).level;
   const byDay = new Map<string, { total: number; done: number }>();
   for (const t of data.tasks) {
+    if (!t.dueDate) continue; // queued, not scheduled
     const d = byDay.get(t.dueDate) ?? { total: 0, done: 0 };
     d.total++;
     if (t.completed) d.done++;

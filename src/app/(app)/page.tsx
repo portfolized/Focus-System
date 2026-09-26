@@ -47,7 +47,7 @@ export default function TodayPage() {
         (timeToMinutes(a.startTime) ?? 9999) - (timeToMinutes(b.startTime) ?? 9999),
     );
   const doneTasks = tasks.filter((t) => t.completed);
-  const overdue = data.tasks.filter((t) => !t.completed && t.dueDate < today);
+  const overdue = data.tasks.filter((t): t is typeof t & { dueDate: string } => !t.completed && t.dueDate !== null && t.dueDate < today);
   const allToday = tasksForDate(data.tasks, today);
   const done = allToday.filter((t) => t.completed).length;
   const total = allToday.length;

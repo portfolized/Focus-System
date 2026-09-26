@@ -16,7 +16,7 @@ export default function AnalyticsPage() {
   const period = ui.analyticsPeriod;
   const days = periodDays(today, period);
   const daySet = new Set(days);
-  const tasks = data.tasks.filter((t) => daySet.has(t.dueDate));
+  const tasks = data.tasks.filter((t) => t.dueDate !== null && daySet.has(t.dueDate));
   const done = tasks.filter((t) => t.completed);
   const rate = tasks.length ? Math.round((done.length / tasks.length) * 100) : 0;
   const sessions = days.reduce((s, d) => s + sessionsOn(data, d), 0);
@@ -153,7 +153,7 @@ function Heatmap() {
   const lastDay = shiftDate(today, 6 - end.getDay());
   const cells = Array.from({ length: 84 }, (_, i) => shiftDate(lastDay, i - 83));
   const doneByDay = new Map<string, number>();
-  for (const t of data.tasks) if (t.completed) doneByDay.set(t.dueDate, (doneByDay.get(t.dueDate) ?? 0) + 1);
+  for (const t of data.tasks) if (t.completed && t.dueDate) doneByDay.set(t.dueDate, (doneByDay.get(t.dueDate) ?? 0) + 1);
   return (
     <div className="heatmap">
       {cells.map((ds) => {
